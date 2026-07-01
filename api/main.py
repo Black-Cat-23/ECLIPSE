@@ -12,16 +12,14 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Dict
 
-import json
-import uuid
-from contextlib import asynccontextmanager
-from typing import Dict
-
+import torch
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
+from src.models.eclipse_prime import ECLIPSEPrime
 from src.utils.config import DEFAULT_CONFIG
+from src.utils.checkpoint import get_best_checkpoint
 from src.utils.db import init_db, get_engine
 
 # ── Global state ─────────────────────────────────────────────────────────────
@@ -31,10 +29,36 @@ app_state: Dict = {"model": None, "device": None, "jobs": {}}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load model on startup, clean up on shutdown."""
-    logger.info("ECLIPSE API starting up in Presentation Mode (No ML loaded)...")
+    logger.info("ECLIPSE API starting up...")
+
+    # Initialize database (creates tables if missing, safe to call always)
     engine = get_engine(DEFAULT_CONFIG.api.db_url)
     init_db(engine)
     logger.info("Database initialized")
+
+    # Load model
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = ECLIPSEPrime.from_config(DEFAULT_CONFIG).to(device)
+    model.eval()
+
+    ckpt = get_best_checkpoint(DEFAULT_CONFIG.api.checkpoint_dir)
+    if ckpt:
+        try:
+            from src.utils.checkpoint import load_checkpoint
+            load_checkpoint(ckpt, model, device=device)
+            logger.info(f"Model loaded from {ckpt}")
+        except Exception as e:
+            logger.warning(f"Checkpoint load failed: {e} — using random weights")
+    else:
+        logger.warning(
+            f"No checkpoint found in '{DEFAULT_CONFIG.api.checkpoint_dir}'. "
+            "API running with untrained model. "
+            "Run notebooks/02_train_4class_colab.ipynb to train."
+        )
+
+    app_state["model"] = model
+    app_state["device"] = device
+
     yield
     logger.info("ECLIPSE API shutting down.")
 

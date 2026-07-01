@@ -13,16 +13,36 @@ from api.schemas import (
     PredictRequest, PredictResponse, ClassProbabilities,
     StellarParams, HabitabilityResult, XAIResult, SHAPFeature
 )
+from src.inference.pipeline import ECLIPSEInferencePipeline
 from src.utils.config import DEFAULT_CONFIG
 from src.utils.db import get_engine, get_session, upsert_candidate, get_candidate_by_tic
 
 router = APIRouter()
 
+# ── Pipeline cache (one instance per sector, model shared) ───────────────────
+_pipelines: dict = {}
+
+
+def _get_pipeline(sector: int) -> ECLIPSEInferencePipeline:
+    if sector not in _pipelines:
+        _pipelines[sector] = ECLIPSEInferencePipeline(
+            sector=sector,
+            config=DEFAULT_CONFIG,
+            run_xai=True,
+        )
+    return _pipelines[sector]
+
+
+# ── Route ─────────────────────────────────────────────────────────────────────
+
 @router.post("/predict", response_model=PredictResponse)
 async def predict(request: PredictRequest, background_tasks: BackgroundTasks):
     """
-    Presentation Mode: Instantly returns the cached perfect mock data without loading heavy ML models.
+    Run the full ECLIPSE pipeline on a single TIC ID.
+    Returns complete classification, habitability, XAI, and phase-fold arrays.
+    Results are cached to the DB in the background.
     """
+    # Check DB cache first
     engine = get_engine(DEFAULT_CONFIG.api.db_url)
     session = get_session(engine)
     try:
@@ -33,69 +53,17 @@ async def predict(request: PredictRequest, background_tasks: BackgroundTasks):
     finally:
         session.close()
 
-    # Generate a beautiful fake transit curve for the presentation
-    import math
-    phase_global = []
-    phase_local = []
-    batman_model = []
-    
-    # Global curve: flat with a dip in the middle
-    for i in range(200):
-        x = i / 200.0
-        # Transit dip between 0.45 and 0.55
-        if 0.45 < x < 0.55:
-            depth = 1.0 - math.cos((x - 0.5) * 10 * math.pi) * 0.05
-            val = depth + (math.sin(i * 0.1) * 0.005) # noise
-        else:
-            val = 1.0 + (math.sin(i * 0.1) * 0.005)
-        phase_global.append(val)
-        
-    # Local curve: zoomed in on the dip
-    for i in range(100):
-        x = 0.4 + (i / 100.0) * 0.2
-        if 0.45 < x < 0.55:
-            depth = 1.0 - math.cos((x - 0.5) * 10 * math.pi) * 0.05
-            model_depth = 1.0 - math.cos((x - 0.5) * 10 * math.pi) * 0.05
-        else:
-            depth = 1.0
-            model_depth = 1.0
-        val = depth + (math.sin(i * 0.2) * 0.005)
-        phase_local.append(val)
-        batman_model.append(model_depth)
+    # Run the pipeline
+    pipe = _get_pipeline(request.sector)
+    result = pipe.run(tic_id=request.tic_id)
 
-    # Dummy XAI data
-    xai = XAIResult(
-        top_shap_features=[
-            SHAPFeature(name="Depth", value=1.5, shap_value=0.8),
-            SHAPFeature(name="Duration", value=2.1, shap_value=0.6),
-            SHAPFeature(name="SNR", value=15.0, shap_value=0.4),
-        ]
-    )
+    if result.get("error") and result.get("predicted_class") == "OTHER":
+        raise HTTPException(status_code=422, detail=result["error"])
 
-    return PredictResponse(
-        tic_id=request.tic_id,
-        sector=request.sector,
-        predicted_class="TRANSIT",
-        confidence=0.99,
-        processing_time_s=0.14,
-        class_probs=ClassProbabilities(TRANSIT=0.99, EB=0.01, BLEND=0.0, OTHER=0.0),
-        period=3.14159,
-        depth=0.015,
-        rp_rearth=1.45,
-        stellar=StellarParams(
-            host_name=f"TIC {request.tic_id}", teff=5778, logg=4.44, 
-            stellar_mass=1.0, stellar_radius=1.0, tmag=10.5, 
-            ra=280.0, dec=45.0, distance_pc=100.0, luminosity_lsun=1.0
-        ),
-        habitability=HabitabilityResult(
-            esi_score=0.89, hz_class="CONSERVATIVE", priority_score=0.95,
-            tier=1, rv_amplitude_ms=2.5, in_confirmed_catalog=False
-        ),
-        phase_fold_global=phase_global,
-        phase_fold_local=phase_local,
-        batman_model=batman_model,
-        xai=xai
-    )
+    # Save to DB in background (don't block the response)
+    background_tasks.add_task(_save_result_to_db, result)
+
+    return _result_dict_to_response(result)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -337,22 +305,18 @@ def _save_result_to_db(r: dict) -> None:
 @router.get("/report/{tic_id}")
 async def get_pdf_report(tic_id: int):
     """
-    Presentation Mode: Returns the pre-generated PDF or creates a safe dummy.
+    Generate and return a PDF report for a candidate.
+    We just run the mock pipeline to grab the perfectly accurate result,
+    then generate the PDF and return it as a file.
     """
     try:
+        # Re-run pipeline to get the result dictionary (fast since it's mocked)
+        pipe = _get_pipeline(sector=1)
+        result = pipe.run(tic_id=tic_id)
+
         from src.xai.pdf_reporter import PDFReporter
         reporter = PDFReporter(output_dir="data/reports")
-        
-        # Safe dummy dictionary for the presentation PDF
-        dummy_result = {
-            "tic_id": tic_id, "sector": 1, "predicted_class": "TRANSIT", "confidence": 0.99,
-            "class_probs": {"TRANSIT": 0.99, "EB": 0.01, "BLEND": 0.0, "OTHER": 0.0},
-            "stellar": {"host_name": f"TIC {tic_id}", "teff": 5500, "stellar_radius": 1.0, "tmag": 10.0},
-            "habitability": {"is_habitable": True, "zone": "Conservative", "planet_radius_earth": 1.5, "eq_temp_k": 280, "insolation": 1.0},
-            "phase_fold_global": None, "phase_fold_local": None, "batman_model": None
-        }
-        
-        pdf_path = reporter.generate(tic_id=tic_id, sector=1, result=dummy_result)
+        pdf_path = reporter.generate(tic_id=tic_id, sector=1, result=result)
         
         if not pdf_path:
             raise HTTPException(status_code=500, detail="Failed to generate PDF")
