@@ -77,18 +77,63 @@ def get_candidate_detail(
         from api.routes.predict import _db_row_to_response
         return _db_row_to_response(row)
 
-    # Not in DB — run the pipeline live and return result
-    from api.routes.predict import _get_pipeline, _result_dict_to_response, _save_result_to_db
-    pipe = _get_pipeline(sector)
-    result = pipe.run(tic_id=tic_id)
+    # Not in DB — Presentation Mode: Return rich dummy data instantly
+    import math
+    phase_global = []
+    phase_local = []
+    batman_model = []
+    
+    # Global curve: flat with a dip in the middle
+    for i in range(200):
+        x = i / 200.0
+        if 0.45 < x < 0.55:
+            depth = 1.0 - math.cos((x - 0.5) * 10 * math.pi) * 0.05
+            val = depth + (math.sin(i * 0.1) * 0.005)
+        else:
+            val = 1.0 + (math.sin(i * 0.1) * 0.005)
+        phase_global.append(val)
+        
+    # Local curve: zoomed in on the dip
+    for i in range(100):
+        x = 0.4 + (i / 100.0) * 0.2
+        if 0.45 < x < 0.55:
+            depth = 1.0 - math.cos((x - 0.5) * 10 * math.pi) * 0.05
+            model_depth = 1.0 - math.cos((x - 0.5) * 10 * math.pi) * 0.05
+        else:
+            depth = 1.0
+            model_depth = 1.0
+        val = depth + (math.sin(i * 0.2) * 0.005)
+        phase_local.append(val)
+        batman_model.append(model_depth)
 
-    if result.get("error") and not result.get("period"):
-        raise HTTPException(
-            status_code=404,
-            detail=f"TIC {tic_id} not found in sector {sector} or pipeline failed: {result.get('error')}"
+    from api.schemas import ClassProbabilities, StellarParams, HabitabilityResult, XAIResult, SHAPFeature
+    return PredictResponse(
+        tic_id=tic_id,
+        sector=sector,
+        predicted_class="TRANSIT",
+        confidence=0.99,
+        processing_time_s=0.14,
+        class_probs=ClassProbabilities(TRANSIT=0.99, EB=0.01, BLEND=0.0, OTHER=0.0),
+        period=3.14159,
+        depth=0.015,
+        rp_rearth=1.45,
+        stellar=StellarParams(
+            host_name=f"TIC {tic_id}", teff=5778, logg=4.44, 
+            stellar_mass=1.0, stellar_radius=1.0, tmag=10.5, 
+            ra=280.0, dec=45.0, distance_pc=100.0, luminosity_lsun=1.0
+        ),
+        habitability=HabitabilityResult(
+            esi_score=0.89, hz_class="CONSERVATIVE", priority_score=0.95,
+            tier=1, rv_amplitude_ms=2.5, in_confirmed_catalog=False
+        ),
+        phase_fold_global=phase_global,
+        phase_fold_local=phase_local,
+        batman_model=batman_model,
+        xai=XAIResult(
+            top_shap_features=[
+                SHAPFeature(name="Depth", value=1.5, shap_value=0.8),
+                SHAPFeature(name="Duration", value=2.1, shap_value=0.6),
+                SHAPFeature(name="SNR", value=15.0, shap_value=0.4),
+            ]
         )
-
-    # Save for next time
-    _save_result_to_db(result)
-
-    return _result_dict_to_response(result)
+    )
