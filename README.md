@@ -1,3 +1,12 @@
+---
+title: ECLIPSE Exoplanet Discovery
+emoji: 🪐
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
+
 # ECLIPSE 🪐 
 **Exoplanet Classification & Light-curve Intelligence Pipeline**
 
