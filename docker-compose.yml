@@ -1,0 +1,46 @@
+version: '3.9'
+
+services:
+  eclipse-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: eclipse-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./checkpoints:/app/checkpoints
+      - ./logs:/app/logs
+    env_file:
+      - .env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  eclipse-frontend:
+    image: node:20-alpine
+    container_name: eclipse-frontend
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - eclipse-api
+    restart: unless-stopped
+
+volumes:
+  eclipse-data:
+  eclipse-checkpoints:

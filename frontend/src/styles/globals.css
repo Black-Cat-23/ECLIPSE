@@ -1,0 +1,182 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Custom CSS Variables ─────────────────────────────────────────────────── */
+:root {
+  --space-950: #020408;
+  --space-900: #050A1C;
+  --space-800: #0A1628;
+  --nebula-blue: #4FC3F7;
+  --nebula-violet: #CE93D8;
+  --nebula-cyan: #80DEEA;
+  --transit-green: #4CAF50;
+  --eb-orange: #FF9800;
+  --blend-red: #F44336;
+}
+
+/* ── Global Base ──────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  width: 100%;
+  min-height: 100vh;
+  background-color: var(--space-950);
+  color: #E8EAF6;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--space-900); }
+::-webkit-scrollbar-thumb { background: #1E3A5F; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--nebula-blue); }
+
+/* ── Glassmorphism card ────────────────────────────────────────────────────── */
+.glass-card {
+  background: rgba(10, 22, 40, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(79, 195, 247, 0.15);
+  border-radius: 16px;
+}
+
+.glass-card-hover {
+  transition: all 0.3s ease;
+}
+.glass-card-hover:hover {
+  border-color: rgba(79, 195, 247, 0.4);
+  box-shadow: 0 0 30px rgba(79, 195, 247, 0.1);
+  transform: translateY(-2px);
+}
+
+/* ── Nebula gradient text ─────────────────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, var(--nebula-blue) 0%, var(--nebula-violet) 50%, var(--nebula-cyan) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Glow effects ────────────────────────────────────────────────────────── */
+.glow-blue  { box-shadow: 0 0 20px rgba(79, 195, 247, 0.4); }
+.glow-violet { box-shadow: 0 0 20px rgba(206, 147, 216, 0.4); }
+.glow-transit { box-shadow: 0 0 15px rgba(76, 175, 80, 0.5); }
+.glow-eb      { box-shadow: 0 0 15px rgba(255, 152, 0, 0.5); }
+.glow-blend   { box-shadow: 0 0 15px rgba(244, 67, 54, 0.5); }
+
+/* ── Class badge colors ───────────────────────────────────────────────────── */
+.badge-transit { background: rgba(76, 175, 80, 0.2); color: #81C784; border: 1px solid rgba(76, 175, 80, 0.4); }
+.badge-eb      { background: rgba(255, 152, 0, 0.2); color: #FFB74D; border: 1px solid rgba(255, 152, 0, 0.4); }
+.badge-blend   { background: rgba(244, 67, 54, 0.2); color: #EF9A9A; border: 1px solid rgba(244, 67, 54, 0.4); }
+.badge-other   { background: rgba(158, 158, 158, 0.2); color: #BDBDBD; border: 1px solid rgba(158, 158, 158, 0.3); }
+
+/* ── Shimmer loading animation ────────────────────────────────────────────── */
+.shimmer {
+  background: linear-gradient(90deg, rgba(79, 195, 247, 0.05) 0%, rgba(79, 195, 247, 0.15) 50%, rgba(79, 195, 247, 0.05) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* ── Scan line effect ─────────────────────────────────────────────────────── */
+.scan-line::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--nebula-blue), transparent);
+  animation: scan 3s ease-in-out infinite;
+}
+
+/* ── WebGL canvas ─────────────────────────────────────────────────────────── */
+canvas.webgl {
+  position: fixed;
+  top: 0; left: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ── D3 chart styles ─────────────────────────────────────────────────────── */
+.eclipse-chart text { fill: #B0BEC5; font-family: 'Inter', sans-serif; font-size: 11px; }
+.eclipse-chart .axis-line { stroke: #263238; }
+.eclipse-chart .grid-line { stroke: #1E3A5F; stroke-dasharray: 4,4; opacity: 0.5; }
+.eclipse-chart .transit-dip { fill: rgba(79, 195, 247, 0.15); stroke: var(--nebula-blue); stroke-width: 1px; }
+
+/* ── Navigation ───────────────────────────────────────────────────────────── */
+.nav-item {
+  transition: all 0.2s ease;
+  border-bottom: 2px solid transparent;
+}
+.nav-item.active,
+.nav-item:hover {
+  color: var(--nebula-blue);
+  border-bottom-color: var(--nebula-blue);
+}
+
+/* ── Button styles ────────────────────────────────────────────────────────── */
+.btn-primary {
+  background: linear-gradient(135deg, #1565C0, #0D47A1);
+  color: white;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(79, 195, 247, 0.3);
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(21, 101, 192, 0.5);
+  border-color: var(--nebula-blue);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--nebula-blue);
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-weight: 500;
+  border: 1px solid rgba(79, 195, 247, 0.3);
+  transition: all 0.3s ease;
+}
+.btn-ghost:hover {
+  background: rgba(79, 195, 247, 0.1);
+  border-color: var(--nebula-blue);
+}
+
+/* ── Progress bar ─────────────────────────────────────────────────────────── */
+.progress-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: #1E3A5F;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--nebula-blue), var(--nebula-violet));
+  transition: width 0.5s ease;
+}
+
+/* ── Probability radar ────────────────────────────────────────────────────── */
+.radar-path { transition: all 0.5s ease; }
+
+/* ── Table ────────────────────────────────────────────────────────────────── */
+.eclipse-table th {
+  background: rgba(13, 71, 161, 0.3);
+  color: var(--nebula-blue);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  padding: 12px 16px;
+}
+.eclipse-table tr:hover td {
+  background: rgba(79, 195, 247, 0.05);
+}
+.eclipse-table td {
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(79, 195, 247, 0.08);
+  font-size: 0.875rem;
+}

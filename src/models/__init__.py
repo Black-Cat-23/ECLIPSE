@@ -1,0 +1,1 @@
+"""ECLIPSE models package."""
