@@ -14,5 +14,5 @@ logs/
 eclipse.db
 
 # Frontend build
-frontend/dist/
+# frontend/dist/  <-- Commented out for HF Deploy
 .DS_Store
