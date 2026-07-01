@@ -30,7 +30,7 @@ export default function SectorPage() {
 
   useEffect(() => {
     if (status === 'done') {
-      axios.get('/api/candidates').then(res => setCandidates(res.data))
+      axios.get('/api/candidates').then(res => setCandidates(res.data.candidates || []))
     }
   }, [status])
 

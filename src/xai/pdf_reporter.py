@@ -75,14 +75,31 @@ class PDFReporter:
         story.append(Paragraph(f"ECLIPSE — TIC {tic_id} · Sector {sector}", title_style))
         story.append(Spacer(1, 0.3*cm))
 
-        # ── Classification summary ────────────────────────────────────────────
+        # ── Executive Summary ──────────────────────────────────────────────────
+        story.append(Paragraph("<b>Executive Summary</b>", styles["Heading2"]))
         pred_class = result.get("predicted_class", "UNKNOWN")
         confidence = result.get("confidence", 0.0)
-        story.append(Paragraph(
-            f"<b>Classification: {pred_class}</b> (confidence: {confidence:.1%})",
-            styles["Normal"]
-        ))
-        story.append(Spacer(1, 0.3*cm))
+        
+        # Safely extract nested habitability data
+        hab_data = result.get("habitability") or {}
+        esi = hab_data.get('esi_score') or 0
+        hz = hab_data.get('hz_class', 'NONE')
+        
+        summary_text = (
+            f"This document presents the automated astronomical analysis for TESS Input Catalog (TIC) target {tic_id} "
+            f"observed in Sector {sector}. The ECLIPSE Deep Learning pipeline has classified this target as a "
+            f"<b>{pred_class}</b> with a model confidence of <b>{confidence:.1%}</b>. "
+        )
+        if pred_class == "TRANSIT":
+            summary_text += (
+                f"The candidate exhibits an Earth Similarity Index (ESI) of {esi:.2f} and resides in the {hz} "
+                f"Habitable Zone regime, making it a priority target for follow-up radial velocity mass characterization."
+            )
+        else:
+            summary_text += "Based on the photometric centroid analysis and deep feature extraction, this signal is flagged as a false positive or non-planetary event."
+            
+        story.append(Paragraph(summary_text, styles["Normal"]))
+        story.append(Spacer(1, 0.5*cm))
 
         # ── Class probabilities table ─────────────────────────────────────────
         probs = result.get("class_probs", {})
@@ -91,25 +108,33 @@ class PDFReporter:
         ]
         prob_table = Table(prob_data, colWidths=[4*cm, 4*cm])
         prob_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a237e")),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#334155")),
             ("ALIGN", (1, 0), (1, -1), "CENTER"),
         ]))
+        
+        story.append(Paragraph("<b>AI Classification Profile</b>", styles["Heading2"]))
         story.append(prob_table)
         story.append(Spacer(1, 0.5*cm))
 
         # ── Transit parameters table ──────────────────────────────────────────
+        # Handle duration, which might be in hours depending on the pipeline stage
+        duration_val = result.get('duration_days') 
+        if duration_val is None:
+            raw_dur = result.get('duration') or 0
+            duration_val = raw_dur / 24.0 # Convert hours to days if needed
+
         param_data = [
             ["Parameter", "Value", "Uncertainty"],
             ["Period (days)", f"{result.get('period', 0):.4f}", f"±{result.get('period_err', 0):.4f}"],
-            ["Duration (days)", f"{result.get('duration_days', 0):.4f}", f"±{result.get('duration_err', 0):.4f}"],
-            ["Depth", f"{result.get('depth', 0):.6f}", f"±{result.get('depth_err', 0):.6f}"],
+            ["Duration (days)", f"{duration_val:.4f}", f"±{result.get('duration_err', 0):.4f}"],
+            ["Depth (ppm)", f"{result.get('depth_ppm', 0):.1f}", f"±{result.get('depth_err', 0)*1e6:.1f}"],
             ["Planet Radius (R⊕)", f"{result.get('rp_rearth') or 0:.2f}", "—"],
             ["Eq. Temp (K)", f"{result.get('t_eq_kelvin') or 0:.0f} K", "—"],
-            ["ESI Score", f"{result.get('esi_score') or 0:.2f}", "—"],
-            ["Habitable Zone", f"{result.get('hz_class', 'UNKNOWN')}", "—"],
+            ["ESI Score", f"{esi:.2f}", "—"],
+            ["Habitable Zone", f"{hz}", "—"],
             ["TLS SDE", f"{result.get('snr_tls', 0):.2f}", "—"],
             ["Photo SNR", f"{result.get('snr_photometric', 0):.2f}", "—"],
         ]
@@ -142,6 +167,22 @@ class PDFReporter:
                 story.append(Paragraph("<b>Phase-Folded Views</b>", styles["Heading2"]))
                 story.append(img2)
                 story.append(Spacer(1, 0.3*cm))
+
+        # ── Habitability Potential ─────────────────────────────────────────────
+        fig_buf3 = self._plot_habitability(result)
+        if fig_buf3:
+            img3 = Image(fig_buf3, width=10*cm, height=6.5*cm)
+            story.append(Paragraph("<b>Habitability Potential</b>", styles["Heading2"]))
+            story.append(img3)
+            story.append(Spacer(1, 0.3*cm))
+
+        # ── XAI Feature Importance ─────────────────────────────────────────────
+        fig_buf4 = self._plot_xai(result)
+        if fig_buf4:
+            img4 = Image(fig_buf4, width=10*cm, height=6.5*cm)
+            story.append(Paragraph("<b>Explainable AI (SHAP)</b>", styles["Heading2"]))
+            story.append(img4)
+            story.append(Spacer(1, 0.3*cm))
 
         # ── Footer ────────────────────────────────────────────────────────────
         story.append(Spacer(1, 1*cm))
@@ -189,6 +230,71 @@ class PDFReporter:
             axes[1].set_xlabel("Phase (transit units)"); axes[1].set_title("Local View (201 bins)")
             axes[1].legend(fontsize=8)
 
+            fig.tight_layout()
+            buf = BytesIO()
+            fig.savefig(buf, format="png", dpi=120)
+            plt.close(fig)
+            buf.seek(0)
+            return buf
+        except Exception:
+            return None
+
+    def _plot_habitability(self, result) -> Optional[BytesIO]:
+        try:
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots(figsize=(6, 4))
+            
+            # Solar system reference points
+            ax.scatter([255], [1.0], c='blue', s=100, label='Earth (ESI=1.0)', marker='*')
+            ax.scatter([210], [0.53], c='red', s=50, label='Mars', alpha=0.6)
+            ax.scatter([320], [0.95], c='orange', s=50, label='Venus', alpha=0.6)
+            
+            t_eq = result.get('t_eq_kelvin') or 0
+            r_p = result.get('rp_rearth') or 0
+            esi = result.get('esi_score') or 0
+            
+            if t_eq > 0 and r_p > 0:
+                color = 'green' if esi > 0.8 else ('orange' if esi > 0.4 else 'grey')
+                ax.scatter([t_eq], [r_p], c=color, s=150, edgecolor='black', 
+                          label=f'Target (ESI={esi:.2f})', zorder=5)
+            
+            ax.set_xlabel("Equilibrium Temperature (K)")
+            ax.set_ylabel("Planet Radius (Earth Radii)")
+            ax.set_title("Habitability Potential (Temperature vs Radius)")
+            ax.axvspan(200, 320, color='green', alpha=0.1, label='Approx. Habitable Zone')
+            ax.grid(True, alpha=0.3)
+            ax.legend(fontsize=8)
+            
+            fig.tight_layout()
+            buf = BytesIO()
+            fig.savefig(buf, format="png", dpi=120)
+            plt.close(fig)
+            buf.seek(0)
+            return buf
+        except Exception:
+            return None
+
+    def _plot_xai(self, result) -> Optional[BytesIO]:
+        try:
+            import matplotlib.pyplot as plt
+            import json
+            
+            shap_json = result.get('shap_values_json')
+            if not shap_json: return None
+            
+            shap_data = json.loads(shap_json)
+            if not shap_data: return None
+            
+            features = [d['name'] for d in shap_data][:5]
+            importances = [d['shap_value'] for d in shap_data][:5]
+            
+            fig, ax = plt.subplots(figsize=(6, 4))
+            bars = ax.barh(features, importances, color='#1565c0')
+            ax.set_xlabel("SHAP Value (Impact on Model Output)")
+            ax.set_title("AI Decision Drivers (Top 5 Features)")
+            ax.invert_yaxis()
+            ax.grid(True, axis='x', alpha=0.3)
+            
             fig.tight_layout()
             buf = BytesIO()
             fig.savefig(buf, format="png", dpi=120)

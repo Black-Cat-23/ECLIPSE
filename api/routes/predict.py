@@ -48,8 +48,8 @@ async def predict(request: PredictRequest, background_tasks: BackgroundTasks):
     try:
         cached = get_candidate_by_tic(session, tic_id=request.tic_id, sector=request.sector)
         if cached and cached.phase_fold_global_json:
-            logger.info(f"TIC {request.tic_id}: cache hit from DB")
-            return _db_row_to_response(cached)
+            logger.info(f"TIC {request.tic_id}: cache hit from DB, but bypassing to guarantee fresh PyTorch inference.")
+            # return _db_row_to_response(cached)
     finally:
         session.close()
 

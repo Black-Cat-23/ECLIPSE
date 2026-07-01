@@ -75,7 +75,8 @@ def get_candidate_detail(
     if row is not None:
         # Reconstruct full response from DB
         from api.routes.predict import _db_row_to_response
-        return _db_row_to_response(row)
+        # return _db_row_to_response(row)
+        pass
 
     # Not in DB — run the pipeline live and return result
     from api.routes.predict import _get_pipeline, _result_dict_to_response, _save_result_to_db

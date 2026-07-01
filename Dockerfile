@@ -52,6 +52,6 @@ COPY .env.example .env
 # Create data dirs
 RUN mkdir -p data/raw data/processed data/labels data/synthetic checkpoints logs
 
-EXPOSE 8000
+EXPOSE 7860
 
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "7860"]

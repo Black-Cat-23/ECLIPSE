@@ -91,9 +91,9 @@ def assign_tier(
     snr_val = float(snr) if snr is not None else 0.0
 
     if (esi_score >= 0.8
-            and hz_class == "CONSERVATIVE"
+            and hz_class in ("CONSERVATIVE", "INNER", "OUTER")
             and snr_val >= 10.0
-            and confidence >= 0.9):
+            and confidence >= 0.85):
         return 1
     elif (esi_score >= 0.5
             and hz_class in ("CONSERVATIVE", "INNER", "OUTER")

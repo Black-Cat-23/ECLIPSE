@@ -1,0 +1,18 @@
+# Environment
+venv/
+.env
+
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+
+# Data & Checkpoints
+data/
+checkpoints/
+logs/
+eclipse.db
+
+# Frontend build
+frontend/dist/
+.DS_Store

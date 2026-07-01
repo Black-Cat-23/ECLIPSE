@@ -72,7 +72,7 @@ const HZ_LABELS: Record<string, { label: string; color: string }> = {
   NONE: { label: 'Outside HZ', color: '#6b7280' },
 }
 
-function MiniLightCurve({ data, model, label }: { data: number[]; model?: number[]; label: string }) {
+function MiniLightCurve({ data, model, label, isLocal }: { data: number[]; model?: number[]; label: string; isLocal?: boolean }) {
   const min = Math.min(...data)
   const max = Math.max(...data)
   const range = max - min || 1
@@ -80,15 +80,30 @@ function MiniLightCurve({ data, model, label }: { data: number[]; model?: number
   const pts = data.map((v, i) => `${(i / (data.length - 1)) * W},${H - ((v - min) / range) * (H - 4) - 2}`)
   const modelPts = model?.map((v, i) => `${(i / (model.length - 1)) * W},${H - ((v - min) / range) * (H - 4) - 2}`)
 
+  const depthPpm = ((1 - min) * 1e6).toFixed(0)
+
   return (
-    <div>
-      <div className="text-xs text-gray-500 uppercase tracking-wider mb-2 font-mono">{label}</div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full rounded" style={{ background: 'rgba(0,0,0,0.4)' }}>
-        <polyline points={pts.join(' ')} fill="none" stroke="#4fc3f7" strokeWidth="1" opacity="0.7" />
-        {modelPts && (
-          <polyline points={modelPts.join(' ')} fill="none" stroke="#4ade80" strokeWidth="1.5" opacity="0.9" />
-        )}
-      </svg>
+    <div className="relative pb-6">
+      <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-2 font-mono flex justify-between">
+        <span>{label}</span>
+        {isLocal && <span className="text-[#BAE6FD]">Dip: {depthPpm} ppm</span>}
+      </div>
+      <div className="relative">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full rounded border border-white/5" style={{ background: 'rgba(0,0,0,0.4)' }}>
+          <polyline points={pts.join(' ')} fill="none" stroke="#4fc3f7" strokeWidth="1" opacity="0.7" />
+          {modelPts && (
+            <polyline points={modelPts.join(' ')} fill="none" stroke="#4ade80" strokeWidth="1.5" opacity="0.9" />
+          )}
+        </svg>
+        {/* Y Axis Labels (Flux) */}
+        <div className="absolute left-2 top-1 text-[8px] text-white/40 ep-mono">{max.toFixed(4)}</div>
+        <div className="absolute left-2 bottom-1 text-[8px] text-[#BAE6FD] font-medium ep-mono">{min.toFixed(4)}</div>
+        
+        {/* X Axis Labels (Phase) */}
+        <div className="absolute left-1 -bottom-5 text-[8px] text-white/40 ep-mono">Phase {isLocal ? '-0.1' : '-0.5'}</div>
+        <div className="absolute left-1/2 -translate-x-1/2 -bottom-5 text-[8px] text-white/40 ep-mono">0.0 (Core)</div>
+        <div className="absolute right-1 -bottom-5 text-[8px] text-white/40 ep-mono">Phase {isLocal ? '+0.1' : '+0.5'}</div>
+      </div>
     </div>
   )
 }
@@ -351,12 +366,14 @@ export default function CandidatePage() {
                   data={data.phase_fold_local}
                   model={data.batman_model ?? undefined}
                   label="Local view (transit) · green = batman fit"
+                  isLocal={true}
                 />
               )}
               {data.phase_fold_global && (
                 <MiniLightCurve
                   data={data.phase_fold_global}
                   label="Global view (full orbit)"
+                  isLocal={false}
                 />
               )}
             </div>
@@ -431,20 +448,36 @@ export default function CandidatePage() {
                 const maxShap = Math.max(...data.xai!.top_shap_features.map(x => Math.abs(x.shap_value)))
                 const pct = maxShap > 0 ? (Math.abs(f.shap_value) / maxShap) * 100 : 0
                 const positive = f.shap_value >= 0
+                
+                // Try to find the exact reading to prove it's real
+                let rawValue = "";
+                const nameLower = f.name.toLowerCase();
+                if (nameLower.includes("depth") && data.depth_ppm != null) rawValue = `${data.depth_ppm.toFixed(1)} ppm`;
+                else if (nameLower.includes("duration") && data.duration_hrs != null) rawValue = `${data.duration_hrs.toFixed(2)} hrs`;
+                else if (nameLower.includes("snr") && data.snr_tls != null) rawValue = `${data.snr_tls.toFixed(2)}σ`;
+                else if (nameLower.includes("odd/even") && data.odd_even_mismatch != null) rawValue = `${data.odd_even_mismatch.toFixed(3)}`;
+                else if (nameLower.includes("period") && data.period != null) rawValue = `${data.period.toFixed(3)} d`;
+
                 return (
-                  <div key={i} className="flex items-center gap-3">
-                    <div className="text-xs text-gray-400 font-mono w-40 shrink-0 truncate">{f.name}</div>
-                    <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${pct}%` }}
-                        transition={{ duration: 0.6, delay: i * 0.05 }}
-                        className="h-full rounded-full"
-                        style={{ background: positive ? '#4ade80' : '#f87171' }}
-                      />
+                  <div key={i} className="flex flex-col mb-4">
+                    <div className="flex justify-between text-[10px] text-white/50 ep-mono uppercase tracking-widest mb-1">
+                      <span>{f.name}</span>
+                      {rawValue && <span className="text-[#BAE6FD]">Reading: {rawValue}</span>}
                     </div>
-                    <div className="text-sm ep-dsp font-medium text-white/70 w-16 text-right drop-shadow-md">
-                      {f.shap_value > 0 ? '+' : ''}{f.shap_value.toFixed(4)}
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${pct}%` }}
+                          transition={{ duration: 0.6, delay: i * 0.05 }}
+                          className="h-full rounded-full"
+                          style={{ background: positive ? '#4ade80' : '#f87171' }}
+                        />
+                      </div>
+                      <div className="text-sm ep-dsp font-medium text-white/70 w-24 text-right drop-shadow-md" 
+                           title="SHAP Value (Impact on AI Prediction)">
+                        Weight: {f.shap_value > 0 ? '+' : ''}{f.shap_value.toFixed(4)}
+                      </div>
                     </div>
                   </div>
                 )

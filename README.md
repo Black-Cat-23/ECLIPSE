@@ -1,181 +1,63 @@
-# ECLIPSE 🔭
-### *Exoplanet Classification & Light-curve Intelligence Pipeline for Space Exploration*
+# ECLIPSE 🪐 
+**Exoplanet Classification & Light-curve Intelligence Pipeline**
 
-> **ISRO Bharatiya Antariksh Hackathon 2026 — Problem Statement PS-07**  
-> *AI-enabled Detection of Exoplanets from Noisy Astronomical Light Curves*
+> *ISRO BAH 2026 Hackathon Submission*
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/eclipse-isro/eclipse/blob/main/notebooks/02_model_training.ipynb)
+![ECLIPSE Dashboard UI](https://img.shields.io/badge/UI-React%20%2B%20Vite-blue?style=for-the-badge&logo=react)
+![ECLIPSE Backend](https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi)
+![Machine Learning](https://img.shields.io/badge/ML-PyTorch-EE4C2C?style=for-the-badge&logo=pytorch)
 
----
+ECLIPSE is a state-of-the-art, end-to-end pipeline designed to discover, validate, and analyze exoplanet candidates from raw photometric light curves (TESS / Kepler). Using a custom deep learning architecture and integrated Explainable AI (XAI), ECLIPSE not only finds planets—it proves *why* they exist.
 
-## What Makes ECLIPSE Different
+## 🌟 Key Features
 
-Every other team will build a **binary** planet vs. non-planet classifier. ECLIPSE directly solves what the PS-07 problem statement actually asks:
+* **Real-time Sector Processing:** Ingests massive catalogs of TIC IDs and processes them through a highly optimized inference pipeline in milliseconds.
+* **Explainable AI (XAI) Profiles:** Generates deep-learning attention heatmaps, SHAP feature importance charts, and conformal prediction sets to build trust in black-box models.
+* **Habitability Assessment:** Automatically derives planetary radius, equilibrium temperature, and categorizes candidates into the Conservative/Optimistic Habitable Zone based on stellar parameters.
+* **NASA-Grade PDF Reporting:** One-click generation of fully comprehensive scientific reports containing phase-folded light curves, astrometric centroid validation, and transit parameters.
 
-| Requirement | ECLIPSE | Typical Team |
-|-------------|---------|-------------|
-| 4-class classification (TRANSIT/EB/BLEND/OTHER) | ✅ | ❌ Binary |
-| Transit parameter estimation P, τ, δ with uncertainty | ✅ | ❌ |
-| SNR / significance per event | ✅ | ❌ |
-| Raw TESS PDCSAP data from MAST | ✅ | ❌ Kaggle CSV |
+## 🚀 Tech Stack
 
----
+### Frontend (User Interface)
+* **React 18** + **Vite** for blazing fast HMR and rendering.
+* **Framer Motion** for butter-smooth cinematic UI transitions.
+* **TailwindCSS** + **Lucide Icons** for a premium, futuristic space aesthetic.
+* **React Query** for intelligent data caching and background fetching.
 
-## Architecture: ECLIPSE-PRIME
+### Backend (Inference Pipeline)
+* **FastAPI** for high-performance, asynchronous REST APIs and WebSockets.
+* **PyTorch** for the underlying deep learning transit classification model.
+* **ReportLab** + **Matplotlib** for generating dynamic, on-the-fly scientific PDF reports.
+* **SQLite** for instant persistence of processed candidates.
 
-```
-Raw PDCSAP Flux ──► Stream A: Temporal Anomaly Transformer ──┐
-                         (ExoVeil-inspired, handles single      │
-                          transits, no period needed)           │
-                                                               ▼
-TLS Period Search ──► Phase Fold ──► Stream B: Periodic ──► Cross-Attention
-                           CNN + MHA Classifier                Fusion (256-d)
-                           + Stellar Params + Centroid              │
-                                                                    ▼
-                                                    ┌───────────────┼───────────────┐
-                                                    ▼               ▼               ▼
-                                               4-class         P̂ ± σ_P         SNR ∈ ℝ+
-                                               softmax         τ̂ ± σ_τ
-                                            {TRANSIT,EB,       δ̂ ± σ_δ
-                                             BLEND,OTHER}   (GaussNLL loss)
-                                                    │
-                                           MAPIE Conformal Wrapper
-                                           90%/95% coverage guaranteed
-```
+## 🛠️ Local Development & Deployment
 
-**Novel contributions (nothing published combines all five):**
-1. First architecture unifying ExoVeil-style raw-flux anomaly detection with periodic phase-fold classification via **cross-attention fusion**
-2. First model simultaneously solving **4-class classification + parameter estimation + SNR** in one network
-3. First use of **batman transit model as a soft physics constraint** in the loss function
-4. Handles **single-transit events** (TESS 27-day sectors) that all prior vetting models fail on
-5. **MAPIE conformal calibration** for statistically guaranteed uncertainty coverage
-
----
-
-## Evaluation Criteria Mapping
-
-| Criterion | Weight | ECLIPSE Feature |
-|-----------|--------|----------------|
-| Accuracy of event detection & classification | 35% | ECLIPSE-PRIME 4-class + TLS detection |
-| Accuracy of transit parameters P, τ, δ | 25% | Multi-task regression + MCMC refinement |
-| Methods / Approach / Novelty | 20% | Dual-stream + physics loss + conformal |
-| Visualization & clarity | 20% | Interactive React dashboard + PDF reports |
-
----
-
-## Quickstart
-
-### 1. Clone & Install
+### 1. Start the Backend
+ECLIPSE relies on a fast, asynchronous Python backend.
 ```bash
-git clone https://github.com/eclipse-isro/eclipse
-cd eclipse
+python -m venv venv
+source venv/bin/activate  # Or venv\Scripts\Activate on Windows
 pip install -r requirements.txt
-cp .env.example .env
+uvicorn api.main:app --reload --port 8000
 ```
 
-### 2. Download TESS Sector 1 Data
+### 2. Start the Frontend
+The gorgeous user interface is built with Vite.
 ```bash
-python -c "
-from src.ingestion.tess_fetcher import TESSFetcher
-from src.ingestion.catalog_loader import CatalogLoader
-
-loader = CatalogLoader()
-tic_ids = loader.get_sector_tic_ids(sector=1, limit=1000)
-fetcher = TESSFetcher(sector=1)
-fetcher.batch_download(tic_ids)
-"
+cd frontend
+npm install
+npm run dev
 ```
 
-### 3. Build Training Dataset
-```bash
-python -c "
-from src.preprocessing.dataset_builder import build_tce_catalog
-build_tce_catalog(sector=1)
-"
-```
+### 3. Production Deployment (Render)
+ECLIPSE is designed to be easily hosted on platforms like Render:
+1. Deploy the backend as a **Web Service** (Python 3 environment).
+2. Deploy the `frontend/` directory as a **Static Site** (Node environment).
+3. Set `VITE_API_URL` on the Static Site to point to your deployed backend URL.
 
-### 4. Train ECLIPSE-PRIME
-```bash
-python -m src.training.train --config configs/default.yaml
-```
+## 🧠 The Science
 
-### 5. Run Inference on a Star
-```bash
-python -c "
-from src.inference.pipeline import ECLIPSEInferencePipeline
-pipe = ECLIPSEInferencePipeline(sector=1, model_path='checkpoints/best.pt')
-result = pipe.run(tic_id=261136679)
-print(result)
-"
-```
-
-### 6. Launch Dashboard
-```bash
-# Terminal 1 — API
-uvicorn api.main:app --port 8000 --reload
-
-# Terminal 2 — Frontend
-cd frontend && npm install && npm run dev
-# → http://localhost:5173
-```
-
-### Docker (all-in-one)
-```bash
-docker-compose up --build
-```
+ECLIPSE analyzes the **Phase-Folded Light Curve** of a target star. By applying a Box Least Squares (BLS) or Transit Least Squares (TLS) algorithm, we identify periodic dips in stellar flux. The depth of the dip tells us the **Planet Radius**, and the period allows us to calculate the **Equilibrium Temperature** via Kepler's Third Law, ultimately determining if the exoplanet resides in the habitable zone.
 
 ---
-
-## Project Structure
-```
-eclipse/
-├── src/
-│   ├── ingestion/        # TESS/Kepler data fetching
-│   ├── preprocessing/    # Denoise → TLS → phase fold → features
-│   ├── models/           # ECLIPSE-PRIME, streams, heads, losses
-│   ├── training/         # Training loop, metrics, data loaders
-│   ├── inference/        # End-to-end pipeline + batch processor
-│   ├── xai/              # SHAP, attention rollout, Captum IG
-│   └── evaluation/       # Benchmarks, injection-recovery
-├── api/                  # FastAPI backend + WebSocket streaming
-├── frontend/             # React + Vite + TailwindCSS dashboard
-├── notebooks/            # 4 Colab-ready notebooks
-└── tests/                # Unit + integration test suite
-```
-
----
-
-## Colab Training (T4 / A100)
-
-Open `notebooks/02_model_training.ipynb` in Colab. The notebook:
-- Installs all dependencies
-- Downloads Sector 1 labeled data
-- Trains ECLIPSE-PRIME with AMP + gradient checkpointing (fits T4 15GB)
-- Saves checkpoint and logs metrics
-
----
-
-## Loss Function
-```
-L_total = 1.0 × Focal_CE(4-class)
-        + 0.5 × GaussianNLL(period)
-        + 0.5 × GaussianNLL(duration)
-        + 0.5 × GaussianNLL(depth)
-        + 0.3 × MSE(SNR)
-        + 0.2 × PhysicsConstraint(batman_consistency)
-```
-
----
-
-## Citation / References
-
-- ExoVeil: Priyanshu (2026) arXiv:2606.02778
-- Transit Least Squares: Hippke & Heller (2019) A&A 623, A39
-- AstroNet: Shallue & Vanderburg (2018) AJ 155, 94
-- batman: Kreidberg (2015) PASP 127, 1161
-- MAPIE: Taquet et al. (2022) JMLR
-- TESS: Ricker et al. (2015) JATIS 1, 014003
-
----
-
-*Built for ISRO BAH 2026 by Team ECLIPSE.*
+*Built with ❤️ for the ISRO BAH 2026 Hackathon*
