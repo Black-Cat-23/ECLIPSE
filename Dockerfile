@@ -12,6 +12,8 @@ ENV PYTHONUNBUFFERED=1
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11 python3.11-dev python3-pip gcc g++ git curl \
     libhdf5-dev libffi-dev libssl-dev \
+    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 RUN ln -sf /usr/bin/python3.11 /usr/bin/python3 && \
@@ -19,10 +21,15 @@ RUN ln -sf /usr/bin/python3.11 /usr/bin/python3 && \
 
 WORKDIR /build
 
+# 1. Build the Python backend dependencies
 COPY requirements.txt .
-# Install all pinned deps
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
+
+# 2. Build the React frontend
+COPY frontend/ frontend/
+WORKDIR /build/frontend
+RUN npm install && npm run build
 
 # ──── STAGE 2: runtime ────────────────────────────────────────────────────────
 FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04 AS runtime
@@ -48,6 +55,9 @@ WORKDIR /app
 COPY src/ src/
 COPY api/ api/
 COPY .env.example .env
+
+# Copy the built React app from the builder stage
+COPY --from=builder /build/frontend/dist /app/frontend/dist
 
 # Create data dirs
 RUN mkdir -p data/raw data/processed data/labels data/synthetic checkpoints logs

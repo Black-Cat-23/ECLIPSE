@@ -146,3 +146,18 @@ async def websocket_job_progress(websocket: WebSocket, job_id: str):
             await websocket.close()
         except Exception:
             pass
+
+# ── Mount Frontend (for Hugging Face Spaces) ──────────────────────────────────
+import os
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+# Check if the frontend build exists (it will in the Docker image)
+frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
+if os.path.exists(frontend_dist):
+    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="assets")
+    
+    @app.get("/{catchall:path}")
+    def serve_react_app(catchall: str):
+        # Serve index.html for all other routes to support React Router
+        return FileResponse(os.path.join(frontend_dist, "index.html"))
