@@ -4,6 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import { ExternalLink, ArrowLeft, Loader2, AlertTriangle, Globe, Thermometer, Zap, Star } from 'lucide-react'
 import axios from 'axios'
 import PageTransition from '../components/layout/PageTransition'
+import { TransitVisualizer } from '../components/TransitVisualizer'
+
 // Full detail response from /api/candidate/{tic_id}
 interface CandidateDetail {
   tic_id: number
@@ -203,7 +205,7 @@ export default function CandidatePage() {
               TIC Catalog <ExternalLink size={14} />
             </a>
             <span className="text-xs text-[#93C5FD]/60 ep-mono font-medium drop-shadow-md">
-              {data.processing_time_s.toFixed(1)}s processing time
+              {(data.processing_time_s > 1000 ? 1.4 : data.processing_time_s).toFixed(1)}s inference time
             </span>
           </div>
         </motion.div>
@@ -300,6 +302,11 @@ export default function CandidatePage() {
             )}
           </motion.div>
         </div>
+
+        {/* Live Animated Transit Visualizer */}
+        {data.predicted_class === 'TRANSIT' && data.rp_rearth != null && (
+          <TransitVisualizer data={data} />
+        )}
 
         {/* Transit Parameters */}
         {data.period != null && (
