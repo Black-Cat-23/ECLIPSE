@@ -27,9 +27,7 @@
     "react-dropzone": "^14.2.3",
     "clsx": "^2.1.1",
     "@react-three/postprocessing": "^2.16.2",
-    "three-stdlib": "^2.30.2"
-  },
-  "devDependencies": {
+    "three-stdlib": "^2.30.2",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@types/d3": "^7.4.3",
@@ -40,5 +38,6 @@
     "tailwindcss": "^3.4.4",
     "typescript": "^5.4.5",
     "vite": "^5.2.12"
-  }
+  },
+  "devDependencies": {}
 }
