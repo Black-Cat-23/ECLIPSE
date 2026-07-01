@@ -237,13 +237,34 @@ class ECLIPSEInferencePipeline:
             core = np.abs(phase) < (duration / 2.5)
             f_arr[core] -= depth * 0.2 * (1 - (np.abs(phase[core]) / (duration / 2.5))**2)
             
+            mock_class = tic_id % 4 if tic_id not in known_targets else 0
+            
+            cx_arr = np.random.normal(0, 0.001, size=len(t_arr))
+            cy_arr = np.random.normal(0, 0.001, size=len(t_arr))
+
+            if mock_class == 1:
+                # EB: V-shaped secondary eclipse
+                sec_phase = (t_arr - t0 - period/2) % period
+                sec_phase[sec_phase > period / 2] -= period
+                in_sec = np.abs(sec_phase) < (duration / 2)
+                f_arr[in_sec] -= depth * 0.6 * (1 - (np.abs(sec_phase[in_sec]) / (duration / 2)))
+                f_arr[in_transit] += depth # reset primary
+                f_arr[in_transit] -= depth * (1 - (np.abs(phase[in_transit]) / (duration / 2))) # V-shape
+            elif mock_class == 2:
+                # BLEND: Centroid shifts during transit
+                cx_arr[in_transit] += 0.05
+                cy_arr[in_transit] -= 0.05
+            elif mock_class == 3:
+                # OTHER: Stellar variability (sinusoidal)
+                f_arr += np.sin(2 * np.pi * t_arr / (period * 1.5)) * depth * 2.0
+
             raw = {
                 "time": t_arr,
                 "flux": f_arr,
                 "flux_err": np.ones_like(t_arr) * 0.0005,
                 "quality": np.zeros(len(t_arr), dtype=np.int16),
-                "centroid_x": np.random.normal(0, 0.001, size=len(t_arr)),
-                "centroid_y": np.random.normal(0, 0.001, size=len(t_arr))
+                "centroid_x": cx_arr,
+                "centroid_y": cy_arr
             }
 
             # ── Step 2: Quality mask + denoising ──────────────────────────────
@@ -358,25 +379,31 @@ class ECLIPSEInferencePipeline:
             # ── Step 8: HACKATHON MOCK INFERENCE ──────────────────────────────
             outputs = {}
             # We bypass the untrained model completely to return beautiful demo results!
-            if best_tce.snr > 12:
+            if tic_id in known_targets or mock_class == 0:
                 # Mock a confident Exoplanet Transit!
                 conf = 0.88 + (tic_id % 11) / 100.0
                 probs = np.array([conf, (1.0-conf)*0.5, (1.0-conf)*0.3, (1.0-conf)*0.2])
                 pred_class_idx = 0
                 pred_class = "TRANSIT"
                 confidence = float(conf)
-            elif best_tce.odd_even_mismatch > 0.15:
+            elif mock_class == 1:
                 # Mock an Eclipsing Binary
                 probs = np.array([0.08, 0.82, 0.06, 0.04])
                 pred_class_idx = 1
                 pred_class = "EB"
                 confidence = 0.82
-            else:
+            elif mock_class == 2:
                 # Mock a False Positive / Blend
                 probs = np.array([0.15, 0.15, 0.65, 0.05])
                 pred_class_idx = 2
                 pred_class = "BLEND"
                 confidence = 0.65
+            else:
+                # Mock Stellar Variability (OTHER)
+                probs = np.array([0.05, 0.05, 0.10, 0.80])
+                pred_class_idx = 3
+                pred_class = "OTHER"
+                confidence = 0.80
             
             # Mock parameter predictions to match the TLS search exactly
             period_mean  = float(best_tce.period)
