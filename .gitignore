@@ -16,3 +16,8 @@ eclipse.db
 # Frontend build
 # frontend/dist/  <-- Commented out for HF Deploy
 .DS_Store
+frontend/dist/
+eclipse.db
+eclipse.db-wal
+data/
+*.exe
