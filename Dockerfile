@@ -1,8 +1,16 @@
 # ── ECLIPSE Dockerfile ────────────────────────────────────────────────────────
-# Multi-stage build: builder → runtime
-# Base: CUDA 12.1 + Python 3.11 for T4/A100 compatibility
+# Multi-stage build: frontend-builder → python-builder → runtime
+# Base: CUDA 12.1 + Python 3.11 + Node 20
 
-# ──── STAGE 1: builder ────────────────────────────────────────────────────────
+# ──── STAGE 0: frontend-builder ───────────────────────────────────────────────
+FROM node:20-slim AS frontend-builder
+WORKDIR /frontend
+COPY frontend/package*.json ./
+RUN npm install --legacy-peer-deps || npm install
+COPY frontend/ ./
+RUN npm run build
+
+# ──── STAGE 1: python-builder ─────────────────────────────────────────────────
 FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -20,7 +28,6 @@ RUN ln -sf /usr/bin/python3.11 /usr/bin/python3 && \
 WORKDIR /build
 
 COPY requirements.txt .
-# Install all pinned deps
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
@@ -38,7 +45,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN ln -sf /usr/bin/python3.11 /usr/bin/python3 && \
     ln -sf /usr/bin/python3.11 /usr/bin/python
 
-# Copy installed packages from builder
+# Copy installed Python packages from builder
 COPY --from=builder /usr/local/lib/python3.11/dist-packages /usr/local/lib/python3.11/dist-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
@@ -47,13 +54,14 @@ WORKDIR /app
 # Copy project source
 COPY src/ src/
 COPY api/ api/
+COPY scripts/ scripts/
 COPY .env.example .env
 
-# Copy the pre-built React app from the local machine directly
-COPY frontend/dist /app/frontend/dist
+# Copy the compiled React app from frontend-builder stage
+COPY --from=frontend-builder /frontend/dist /app/frontend/dist
 
 # Create data dirs
-RUN mkdir -p data/raw data/processed data/labels data/synthetic checkpoints logs
+RUN mkdir -p data/raw data/processed data/labels data/synthetic checkpoints logs data/reports
 
 EXPOSE 7860
 

@@ -97,12 +97,10 @@ export default function AnalysisPage() {
     } else {
       setApiResult(fetchedResult)
     }
-    setIsAnalyzing(false)
-    setShowResult(true)
-  }
 
     // Short pause before expanding result
     await new Promise(r => setTimeout(r, 600))
+    setIsAnalyzing(false)
     setShowResult(true)
   }
 
