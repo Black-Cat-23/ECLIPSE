@@ -30,9 +30,11 @@ export default function SectorPage() {
 
   useEffect(() => {
     if (status === 'done') {
-      axios.get('/api/candidates').then(res => setCandidates(res.data.candidates || []))
+      axios.get('/api/candidates', { params: { sector, limit: 50 } })
+        .then(res => setCandidates(res.data.candidates || []))
+        .catch(() => {})
     }
-  }, [status])
+  }, [status, sector])
 
   const pollIntervalRef = useRef<number | null>(null)
   const isRunningRef = useRef(false)

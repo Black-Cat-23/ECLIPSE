@@ -30,7 +30,17 @@ export default function App() {
               transition={{ duration: 2, ease: [0.16, 1, 0.3, 1] }}
               className="ep-page-bg"
             >
-              <img src="/16.jpg" alt="" className="ep-page-bg__img" />
+              <img 
+                src="/16.jpg" 
+                alt="Cosmos Background" 
+                className="ep-page-bg__img" 
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  if (!target.src.includes('raw.githubusercontent.com')) {
+                    target.src = 'https://raw.githubusercontent.com/Black-Cat-23/ECLIPSE/main/frontend/public/16.jpg';
+                  }
+                }}
+              />
               <div className="ep-page-bg__overlay"></div>
             </motion.div>
           )}

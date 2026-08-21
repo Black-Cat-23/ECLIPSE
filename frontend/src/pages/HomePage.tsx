@@ -203,7 +203,17 @@ export default function HomePage() {
       <nav className={`ep-nav ${navScrolled ? 'ep-nav--scrolled' : ''}`}>
         <div className="ep-nav__inner">
           <a className="ep-logo" href="#home" style={{ position: 'relative' }}>
-            <img src="/logo.png" alt="ECLIPSE" style={{ height: '80px', width: 'auto', display: 'block', transform: 'translateY(6px)' }} />
+            <img 
+              src="/logo.png" 
+              alt="ECLIPSE" 
+              style={{ height: '80px', width: 'auto', display: 'block', transform: 'translateY(6px)' }} 
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                if (!target.src.includes('raw.githubusercontent.com')) {
+                  target.src = 'https://raw.githubusercontent.com/Black-Cat-23/ECLIPSE/main/frontend/public/logo.png';
+                }
+              }}
+            />
           </a>
           <div className="ep-nav__right-group" style={{ display: 'flex', alignItems: 'center', gap: '32px', marginLeft: 'auto' }}>
             <ul className="ep-nav__links" style={{ marginLeft: 0 }}>
@@ -228,6 +238,12 @@ export default function HomePage() {
           <motion.img
             src="/hero.jpg"
             alt="ECLIPSE Cosmos"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              if (!target.src.includes('raw.githubusercontent.com')) {
+                target.src = 'https://raw.githubusercontent.com/Black-Cat-23/ECLIPSE/main/frontend/public/hero.jpg';
+              }
+            }}
             initial={{ scale: 1.1, filter: 'brightness(1.05) contrast(1.05)' }}
             animate={{ scale: 1, filter: 'brightness(1.05) contrast(1.05)' }}
             transition={{ duration: 4, ease: [0.16, 1, 0.3, 1] }}

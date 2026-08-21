@@ -25,7 +25,17 @@ export default function Navigation() {
     >
       <div className="ep-nav__inner">
         <Link className="ep-logo" to="/" style={{ position: 'relative' }}>
-          <img src="/logo.png" alt="ECLIPSE" style={{ height: '80px', width: 'auto', display: 'block', transform: 'translateY(6px)' }} />
+          <img 
+            src="/logo.png" 
+            alt="ECLIPSE" 
+            style={{ height: '80px', width: 'auto', display: 'block', transform: 'translateY(6px)' }} 
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              if (!target.src.includes('raw.githubusercontent.com')) {
+                target.src = 'https://raw.githubusercontent.com/Black-Cat-23/ECLIPSE/main/frontend/public/logo.png';
+              }
+            }}
+          />
         </Link>
         <div className="ep-nav__right-group" style={{ display: 'flex', alignItems: 'center', gap: '32px', marginLeft: 'auto' }}>
           <ul className="ep-nav__links" style={{ marginLeft: 0 }}>
