@@ -74,22 +74,24 @@ export default function AnalysisPage() {
     const ticNum = parseInt(ticInput)
     let fetchedResult: PredictResponse | null = null
     let fetchedError: string | null = null
+    let apiDone = false
 
     axios.post('/api/predict', { tic_id: ticNum, sector, live_mast: liveMast })
-      .then(res => fetchedResult = res.data)
-      .catch(err => fetchedError = err.response?.data?.detail || err.message)
+      .then(res => { fetchedResult = res.data; apiDone = true })
+      .catch(err => { fetchedError = err.response?.data?.detail || err.message || 'Unknown error'; apiDone = true })
 
-    // 2. Step through the stages
+    // 2. Step through the animated pipeline stages
     for (let i = 0; i < 5; i++) {
       setCurrentStageIndex(i)
-      await new Promise(r => setTimeout(r, liveMast ? 2500 : 1800))
-
-      if (i === 4) {
-        while (!fetchedResult && !fetchedError) {
-          await new Promise(r => setTimeout(r, 500))
-        }
-      }
+      await new Promise(r => setTimeout(r, liveMast ? 2500 : 1600))
     }
+
+    // 3. Wait for API to finish (with 30s safety timeout)
+    const deadline = Date.now() + 30_000
+    while (!apiDone && Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 300))
+    }
+    if (!apiDone) fetchedError = 'Pipeline timed out. Try again.'
 
     setCurrentStageIndex(5)
     if (fetchedError) {
@@ -99,7 +101,7 @@ export default function AnalysisPage() {
     }
 
     // Short pause before expanding result
-    await new Promise(r => setTimeout(r, 600))
+    await new Promise(r => setTimeout(r, 500))
     setIsAnalyzing(false)
     setShowResult(true)
   }
@@ -140,14 +142,14 @@ export default function AnalysisPage() {
                   onClick={() => setLiveMast(false)}
                   className={`px-5 py-1.5 rounded-full text-xs font-semibold ep-dsp tracking-wider uppercase transition-all ${!liveMast ? 'bg-[#1B6EE8] text-white shadow-[0_0_15px_rgba(27,110,232,0.5)]' : 'text-[#BAE6FD]/70 hover:text-white'}`}
                 >
-                  ⚡ Fast High-Cadence Mode
+                  Fast High-Cadence Mode
                 </button>
                 <button
                   type="button"
                   onClick={() => setLiveMast(true)}
                   className={`px-5 py-1.5 rounded-full text-xs font-semibold ep-dsp tracking-wider uppercase transition-all ${liveMast ? 'bg-[#1FAD73] text-white shadow-[0_0_15px_rgba(31,173,115,0.5)]' : 'text-[#BAE6FD]/70 hover:text-white'}`}
                 >
-                  🛰️ Live NASA MAST Ingestion
+                  Live NASA MAST Ingestion
                 </button>
               </div>
 

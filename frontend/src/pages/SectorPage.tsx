@@ -35,6 +35,7 @@ export default function SectorPage() {
   }, [status])
 
   const pollIntervalRef = useRef<number | null>(null)
+  const isRunningRef = useRef(false)
 
   const cleanup = () => {
     if (wsRef.current) {
@@ -45,6 +46,7 @@ export default function SectorPage() {
       clearInterval(pollIntervalRef.current)
       pollIntervalRef.current = null
     }
+    isRunningRef.current = false
   }
 
   useEffect(() => {
@@ -75,6 +77,7 @@ export default function SectorPage() {
 
   const startProcessing = async () => {
     cleanup()
+    isRunningRef.current = true
     setStatus('running')
     setProgress(0)
     setProcessed(0)
@@ -99,10 +102,6 @@ export default function SectorPage() {
         const ws = new WebSocket(`${WS_URL}/ws/job/${jid}`)
         wsRef.current = ws
 
-        ws.onopen = () => {
-          // Connected successfully
-        }
-
         ws.onmessage = (event) => {
           try {
             const msg = JSON.parse(event.data)
@@ -126,8 +125,9 @@ export default function SectorPage() {
           startPollingFallback(jid)
         }
 
+        // Use ref (not stale state) to check if still running on close
         ws.onclose = () => {
-          if (status === 'running') {
+          if (isRunningRef.current) {
             startPollingFallback(jid)
           }
         }
@@ -135,15 +135,16 @@ export default function SectorPage() {
         startPollingFallback(jid)
       }
 
-      // Safety timeout: start polling after 3s if still 0 progress
+      // Safety timeout: start polling after 3s if WebSocket isn't open
       setTimeout(() => {
-        if (wsRef.current?.readyState !== WebSocket.OPEN) {
+        if (wsRef.current?.readyState !== WebSocket.OPEN && isRunningRef.current) {
           startPollingFallback(jid)
         }
       }, 3000)
 
     } catch {
       setStatus('error')
+      isRunningRef.current = false
     }
   }
 

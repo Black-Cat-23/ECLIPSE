@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { Download, Search, Filter } from 'lucide-react'
 import axios from 'axios'
 import PageTransition from '../components/layout/PageTransition'
@@ -33,6 +34,7 @@ const CLASS_COLORS: Record<string, string> = {
 }
 
 export default function CatalogPage() {
+  const navigate = useNavigate()
   const [filterClass, setFilterClass] = useState<string>('')
   const [filterSector, setFilterSector] = useState<string>('')
   const [minSnr, setMinSnr] = useState(0)
@@ -144,7 +146,7 @@ export default function CatalogPage() {
                 animate={{ opacity: 1 }}
                 transition={{ delay: i * 0.02 }}
                 className="cursor-pointer border-b border-[#3B6A9A]/20 hover:bg-[#3B6A9A]/10 transition-colors text-white text-sm"
-                onClick={() => window.location.href = `/candidate/${c.tic_id}`}
+                onClick={() => navigate(`/candidate/${c.tic_id}`)}
               >
                 <td className="font-mono text-[#93C5FD] py-4 px-6">{c.tic_id}</td>
                 <td className="text-center">{c.sector}</td>
