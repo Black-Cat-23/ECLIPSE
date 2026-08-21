@@ -43,6 +43,32 @@ async def process_sector(request: SectorProcessRequest, background_tasks: Backgr
     )
 
 
+@router.get("/sector/job/{job_id}")
+async def get_job_status(job_id: str):
+    """Poll job status directly via HTTP (fallback when WebSockets are unavailable)."""
+    from api.main import app_state
+    job = app_state["jobs"].get(job_id)
+    if job is None:
+        return {
+            "job_id": job_id,
+            "status": "not_found",
+            "progress": 0.0,
+            "processed": 0,
+            "total": 0,
+            "found": 0,
+        }
+    return {
+        "job_id": job_id,
+        "status": job.get("status", "pending"),
+        "progress": job.get("progress", 0.0),
+        "processed": job.get("processed", 0),
+        "total": job.get("total", 0),
+        "found": job.get("found", 0),
+        "current_tic": job.get("current_tic"),
+        "error": job.get("error"),
+    }
+
+
 async def _run_sector_job(job_id: str, sector: int, max_tic: int):
     """
     Background coroutine: processes all TIC IDs in a sector sequentially.

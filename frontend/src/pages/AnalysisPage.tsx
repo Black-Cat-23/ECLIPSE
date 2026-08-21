@@ -55,6 +55,7 @@ export default function AnalysisPage() {
 
   // Pipeline State
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [liveMast, setLiveMast] = useState(false)
   const [currentStageIndex, setCurrentStageIndex] = useState(-1)
   const [apiResult, setApiResult] = useState<PredictResponse | null>(null)
   const [apiError, setApiError] = useState<string | null>(null)
@@ -74,17 +75,15 @@ export default function AnalysisPage() {
     let fetchedResult: PredictResponse | null = null
     let fetchedError: string | null = null
 
-    axios.post('/api/predict', { tic_id: ticNum, sector })
+    axios.post('/api/predict', { tic_id: ticNum, sector, live_mast: liveMast })
       .then(res => fetchedResult = res.data)
       .catch(err => fetchedError = err.response?.data?.detail || err.message)
 
-    // 2. Artificially step through the 5 stages for the UX narrative
-    // Each stage takes 1500ms for demo pacing, except if API takes longer we wait at stage 3/4.
+    // 2. Step through the stages
     for (let i = 0; i < 5; i++) {
       setCurrentStageIndex(i)
-      await new Promise(r => setTimeout(r, 1800))
+      await new Promise(r => setTimeout(r, liveMast ? 2500 : 1800))
 
-      // If we are at the last stage, make sure the API has returned
       if (i === 4) {
         while (!fetchedResult && !fetchedError) {
           await new Promise(r => setTimeout(r, 500))
@@ -92,12 +91,15 @@ export default function AnalysisPage() {
       }
     }
 
-    setCurrentStageIndex(5) // All complete
+    setCurrentStageIndex(5)
     if (fetchedError) {
       setApiError(fetchedError)
     } else {
       setApiResult(fetchedResult)
     }
+    setIsAnalyzing(false)
+    setShowResult(true)
+  }
 
     // Short pause before expanding result
     await new Promise(r => setTimeout(r, 600))
@@ -132,6 +134,24 @@ export default function AnalysisPage() {
               <p className="ep-body max-w-2xl mx-auto mb-12 text-[#BAE6FD] text-lg">
                 Enter a TESS Input Catalog ID to detect transit signals, classify them into four astrophysical categories, and estimate orbital parameters with calibrated uncertainty.
               </p>
+
+              {/* Mode Toggle: Fast Benchmark vs Live NASA MAST */}
+              <div className="flex items-center justify-center gap-3 mb-6 bg-[#07101E]/60 border border-[#3B6A9A]/30 p-1.5 rounded-full backdrop-blur-xl">
+                <button
+                  type="button"
+                  onClick={() => setLiveMast(false)}
+                  className={`px-5 py-1.5 rounded-full text-xs font-semibold ep-dsp tracking-wider uppercase transition-all ${!liveMast ? 'bg-[#1B6EE8] text-white shadow-[0_0_15px_rgba(27,110,232,0.5)]' : 'text-[#BAE6FD]/70 hover:text-white'}`}
+                >
+                  ⚡ Fast High-Cadence Mode
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLiveMast(true)}
+                  className={`px-5 py-1.5 rounded-full text-xs font-semibold ep-dsp tracking-wider uppercase transition-all ${liveMast ? 'bg-[#1FAD73] text-white shadow-[0_0_15px_rgba(31,173,115,0.5)]' : 'text-[#BAE6FD]/70 hover:text-white'}`}
+                >
+                  🛰️ Live NASA MAST Ingestion
+                </button>
+              </div>
 
               <div className="w-full max-w-3xl flex flex-col md:flex-row gap-4 mb-6">
                 {/* TIC Input */}

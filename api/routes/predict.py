@@ -55,7 +55,7 @@ async def predict(request: PredictRequest, background_tasks: BackgroundTasks):
 
     # Run the pipeline
     pipe = _get_pipeline(request.sector)
-    result = pipe.run(tic_id=request.tic_id)
+    result = pipe.run(tic_id=request.tic_id, live_mast=getattr(request, "live_mast", False))
 
     if result.get("error") and result.get("predicted_class") == "OTHER":
         raise HTTPException(status_code=422, detail=result["error"])

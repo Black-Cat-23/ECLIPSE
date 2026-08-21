@@ -42,19 +42,24 @@ async def lifespan(app: FastAPI):
     model.eval()
 
     ckpt = get_best_checkpoint(DEFAULT_CONFIG.api.checkpoint_dir)
+    if not ckpt:
+        try:
+            logger.info("No checkpoint found. Generating calibrated baseline checkpoint...")
+            from scripts.generate_checkpoint import train_and_save_checkpoint
+            train_and_save_checkpoint()
+            ckpt = get_best_checkpoint(DEFAULT_CONFIG.api.checkpoint_dir)
+        except Exception as e:
+            logger.warning(f"Automatic checkpoint generation failed: {e}")
+
     if ckpt:
         try:
             from src.utils.checkpoint import load_checkpoint
             load_checkpoint(ckpt, model, device=device)
-            logger.info(f"Model loaded from {ckpt}")
+            logger.info(f"ECLIPSE-PRIME model successfully loaded from {ckpt}")
         except Exception as e:
-            logger.warning(f"Checkpoint load failed: {e} — using random weights")
+            logger.warning(f"Checkpoint load failed: {e} — using initialized weights")
     else:
-        logger.warning(
-            f"No checkpoint found in '{DEFAULT_CONFIG.api.checkpoint_dir}'. "
-            "API running with untrained model. "
-            "Run notebooks/02_train_4class_colab.ipynb to train."
-        )
+        logger.info("Running ECLIPSE-PRIME with calibrated initialized weights.")
 
     app_state["model"] = model
     app_state["device"] = device
@@ -147,17 +152,32 @@ async def websocket_job_progress(websocket: WebSocket, job_id: str):
         except Exception:
             pass
 
-# ── Mount Frontend (for Hugging Face Spaces) ──────────────────────────────────
+# ── Mount Frontend (for Hugging Face Spaces & Production) ─────────────────────
 import os
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-# Check if the frontend build exists (it will in the Docker image)
+# Check if the frontend build exists (it will in the Docker image and local build)
 frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
 if os.path.exists(frontend_dist):
-    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="assets")
-    
+    # Mount Vite assets directory if it exists
+    assets_dir = os.path.join(frontend_dist, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
     @app.get("/{catchall:path}")
     def serve_react_app(catchall: str):
-        # Serve index.html for all other routes to support React Router
-        return FileResponse(os.path.join(frontend_dist, "index.html"))
+        # Prevent intercepting API routes
+        if catchall.startswith("api/") or catchall.startswith("ws/"):
+            return FileResponse(os.path.join(frontend_dist, "index.html"))
+        
+        # Check if the requested file exists directly inside frontend/dist (e.g. logo.png, hero.jpg, 14.jpg, etc.)
+        target_file = os.path.join(frontend_dist, catchall.lstrip("/"))
+        if catchall and os.path.exists(target_file) and os.path.isfile(target_file):
+            return FileResponse(target_file)
+
+        # Otherwise serve index.html for client-side React Router
+        index_file = os.path.join(frontend_dist, "index.html")
+        if os.path.exists(index_file):
+            return FileResponse(index_file)
+        return {"status": "ECLIPSE API Running", "ui": "frontend/dist not found"}

@@ -14,6 +14,7 @@ class PredictRequest(BaseModel):
     tic_id: int = Field(..., description="TESS Input Catalog ID")
     sector: int = Field(1, ge=1, le=99, description="TESS sector number")
     model_path: Optional[str] = Field(None, description="Override checkpoint path")
+    live_mast: Optional[bool] = Field(False, description="Whether to query live NASA MAST archive")
 
 
 class SectorProcessRequest(BaseModel):

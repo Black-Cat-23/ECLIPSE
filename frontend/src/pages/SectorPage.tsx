@@ -34,7 +34,47 @@ export default function SectorPage() {
     }
   }, [status])
 
+  const pollIntervalRef = useRef<number | null>(null)
+
+  const cleanup = () => {
+    if (wsRef.current) {
+      try { wsRef.current.close() } catch {}
+      wsRef.current = null
+    }
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
+  }
+
+  useEffect(() => {
+    return () => cleanup()
+  }, [])
+
+  const startPollingFallback = (jid: string) => {
+    if (pollIntervalRef.current) return
+    pollIntervalRef.current = window.setInterval(async () => {
+      try {
+        const { data: msg } = await axios.get(`/api/sector/job/${jid}`)
+        setProgress(msg.progress ?? 0)
+        setProcessed(msg.processed ?? 0)
+        setTotal(msg.total ?? 0)
+        setFound(msg.found ?? 0)
+        if (msg.status === 'done' || msg.status === 'completed') {
+          setStatus('done')
+          cleanup()
+        } else if (msg.status === 'error') {
+          setStatus('error')
+          cleanup()
+        }
+      } catch {
+        // keep polling
+      }
+    }, 1000)
+  }
+
   const startProcessing = async () => {
+    cleanup()
     setStatus('running')
     setProgress(0)
     setProcessed(0)
@@ -46,20 +86,62 @@ export default function SectorPage() {
       const jid = data.job_id
       setJobId(jid)
 
-      // Connect WebSocket for live progress
-      const WS_URL = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('http', 'ws') : 'ws://localhost:8000';
-      const ws = new WebSocket(`${WS_URL}/ws/job/${jid}`)
+      // Compute dynamic WebSocket URL for production & Hugging Face Spaces
+      const isHttps = window.location.protocol === 'https:'
+      const wsProto = isHttps ? 'wss:' : 'ws:'
+      const host = window.location.host || 'localhost:8000'
+      const customApi = import.meta.env.VITE_API_URL
+      const WS_URL = customApi 
+        ? customApi.replace(/^http/, 'ws')
+        : `${wsProto}//${host}`
 
-      wsRef.current = ws
-      ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data)
-        setProgress(msg.progress ?? 0)
-        setProcessed(msg.processed ?? 0)
-        setTotal(msg.total ?? 0)
-        setFound(msg.found ?? 0)
-        if (msg.status === 'done' || msg.status === 'completed') { setStatus('done'); ws.close() }
-        if (msg.status === 'error') { setStatus('error'); ws.close() }
+      try {
+        const ws = new WebSocket(`${WS_URL}/ws/job/${jid}`)
+        wsRef.current = ws
+
+        ws.onopen = () => {
+          // Connected successfully
+        }
+
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data)
+            setProgress(msg.progress ?? 0)
+            setProcessed(msg.processed ?? 0)
+            setTotal(msg.total ?? 0)
+            setFound(msg.found ?? 0)
+            if (msg.status === 'done' || msg.status === 'completed') { 
+              setStatus('done')
+              cleanup()
+            }
+            if (msg.status === 'error') { 
+              setStatus('error')
+              cleanup()
+            }
+          } catch {}
+        }
+
+        ws.onerror = () => {
+          // Switch to HTTP polling fallback if WebSocket errors out
+          startPollingFallback(jid)
+        }
+
+        ws.onclose = () => {
+          if (status === 'running') {
+            startPollingFallback(jid)
+          }
+        }
+      } catch {
+        startPollingFallback(jid)
       }
+
+      // Safety timeout: start polling after 3s if still 0 progress
+      setTimeout(() => {
+        if (wsRef.current?.readyState !== WebSocket.OPEN) {
+          startPollingFallback(jid)
+        }
+      }, 3000)
+
     } catch {
       setStatus('error')
     }

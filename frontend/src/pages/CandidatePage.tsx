@@ -1,7 +1,8 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
-import { ExternalLink, ArrowLeft, Loader2, AlertTriangle, Globe, Thermometer, Zap, Star } from 'lucide-react'
+import { ExternalLink, ArrowLeft, Loader2, AlertTriangle, Globe, Thermometer, Zap, Star, Volume2 } from 'lucide-react'
 import axios from 'axios'
 import PageTransition from '../components/layout/PageTransition'
 import { TransitVisualizer } from '../components/TransitVisualizer'
@@ -137,6 +138,7 @@ function ESIGauge({ esi }: { esi: number }) {
 export default function CandidatePage() {
   const { ticId } = useParams<{ ticId: string }>()
   const [sector] = [1] // default sector — could add UI for sector selection
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false)
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['candidate-detail', ticId],
@@ -144,6 +146,50 @@ export default function CandidatePage() {
     enabled: !!ticId,
     retry: 1,
   })
+
+  const playSonification = () => {
+    if (isPlayingAudio) return
+    const points = data?.phase_fold_local || data?.phase_fold_global
+    if (!points || points.length === 0) return
+
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const osc = audioCtx.createOscillator()
+      const gain = audioCtx.createGain()
+      osc.type = 'sine'
+      osc.connect(gain)
+      gain.connect(audioCtx.destination)
+
+      const baseFreq = 440 // A4 base note
+      const durationPerPoint = 0.012 // 12ms per point
+      const totalDuration = points.length * durationPerPoint
+
+      setIsPlayingAudio(true)
+      osc.start()
+
+      points.forEach((fluxVal: number, idx: number) => {
+        const time = audioCtx.currentTime + idx * durationPerPoint
+        // Baseline flux is 0.0 or 1.0; dip drops pitch down audibly
+        const normalizedDiff = Math.min(Math.max(fluxVal, -0.05), 0.05)
+        const freq = baseFreq + normalizedDiff * 3500
+        osc.frequency.setValueAtTime(Math.max(freq, 120), time)
+      })
+
+      gain.gain.setValueAtTime(0.15, audioCtx.currentTime)
+      gain.gain.setValueAtTime(0.01, audioCtx.currentTime + totalDuration - 0.05)
+
+      setTimeout(() => {
+        try {
+          osc.stop()
+          audioCtx.close()
+        } catch {}
+        setIsPlayingAudio(false)
+      }, totalDuration * 1000)
+
+    } catch (e) {
+      setIsPlayingAudio(false)
+    }
+  }
 
   if (isLoading) return (
     <div className="flex items-center justify-center min-h-screen gap-3">
@@ -171,19 +217,29 @@ export default function CandidatePage() {
 
         {/* Header */}
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-12">
-          <div className="flex justify-between items-center mb-8">
+          <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
             <Link to="/catalog" className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors ep-dsp uppercase tracking-widest font-semibold drop-shadow-md">
               <ArrowLeft size={16} /> Back to Catalog
             </Link>
-            <a
-              href={`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/report/${data.tic_id}`}
-
-              download
-              className="inline-flex items-center gap-2 bg-[#1B6EE8]/20 hover:bg-[#1B6EE8]/40 border border-[#1B6EE8]/50 text-[#BAE6FD] px-4 py-2 rounded-lg text-[10px] ep-dsp uppercase tracking-widest font-semibold transition-colors shadow-[0_0_15px_rgba(27,110,232,0.2)] hover:shadow-[0_0_25px_rgba(27,110,232,0.4)]"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-              Download PDF Report
-            </a>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={playSonification}
+                disabled={isPlayingAudio}
+                className={`inline-flex items-center gap-2 border px-4 py-2 rounded-lg text-[10px] ep-dsp uppercase tracking-widest font-semibold transition-all ${isPlayingAudio ? 'bg-[#1FAD73]/30 border-[#1FAD73] text-[#4ade80] shadow-[0_0_20px_rgba(74,222,128,0.4)]' : 'bg-[#0B172A]/60 hover:bg-[#1B6EE8]/20 border-[#3B6A9A]/50 text-[#BAE6FD]'}`}
+              >
+                <Volume2 size={14} className={isPlayingAudio ? 'animate-bounce text-[#4ade80]' : 'text-[#93C5FD]'} />
+                {isPlayingAudio ? 'Sonifying Light Curve...' : 'Audio Sonification'}
+              </button>
+              <a
+                href={`/api/report/${data.tic_id}`}
+                download={`ECLIPSE_Report_TIC_${data.tic_id}.pdf`}
+                className="inline-flex items-center gap-2 bg-[#1B6EE8]/20 hover:bg-[#1B6EE8]/40 border border-[#1B6EE8]/50 text-[#BAE6FD] px-4 py-2 rounded-lg text-[10px] ep-dsp uppercase tracking-widest font-semibold transition-colors shadow-[0_0_15px_rgba(27,110,232,0.2)] hover:shadow-[0_0_25px_rgba(27,110,232,0.4)]"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                Download PDF Report
+              </a>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-6 mb-2">
             <h1 className="ep-dsp font-black text-6xl md:text-7xl drop-shadow-[0_0_30px_rgba(255,255,255,0.4)] text-white">TIC {data.tic_id}</h1>
